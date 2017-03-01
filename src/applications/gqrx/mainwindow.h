@@ -138,6 +138,8 @@ private slots:
     void setIqSwap(bool reversed);
     void setDcCancel(bool enabled);
     void setIqBalance(bool enabled);
+    void setBiasT(bool enabled);
+    void setNotchAMFMFilter(bool enabled);
     void setIgnoreLimits(bool ignore_limits);
     void setFreqCtrlReset(bool enabled);
     void selectDemod(QString demod);

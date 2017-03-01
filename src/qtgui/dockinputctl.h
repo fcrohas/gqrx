@@ -103,6 +103,12 @@ public:
 
     void    setFreqCtrlReset(bool enabled);
 
+    void    setBiasT(bool enabled);
+    bool    biasT(void);
+
+    void    setNotchAMFMFilter(bool enabled);
+    bool    notchAMFMFilter(void);
+
 signals:
     void gainChanged(QString name, double value);
     void autoGainChanged(bool enabled);
@@ -114,6 +120,8 @@ signals:
     void ignoreLimitsChanged(bool ignore);
     void antennaSelected(QString antenna);
     void freqCtrlResetChanged(bool enabled);
+    void biastChanged(bool enabled);
+    void notchAMFMFilterChanged(bool enabled);
 
 private slots:
     void on_lnbSpinBox_valueChanged(double value);
@@ -125,6 +133,8 @@ private slots:
     void on_ignoreButton_toggled(bool checked);
     void on_antSelector_currentIndexChanged(const QString &antenna);
     void on_freqCtrlResetButton_toggled(bool checked);
+    void on_biastEnableButton_toggled(bool checked);
+    void on_notchAMFMButton_toggled(bool checked);
 
     void sliderValueChanged(int value);
 

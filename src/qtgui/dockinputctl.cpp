@@ -507,6 +507,24 @@ void DockInputCtl::on_freqCtrlResetButton_toggled(bool checked)
     emit freqCtrlResetChanged(checked);
 }
 
+/**
+ * BIAS-T checkbox changed.
+ * @param checked True if BIAS-T power is enabled, false otherwise
+ */
+void DockInputCtl::on_biastEnableButton_toggled(bool checked)
+{
+    emit biastChanged(checked);
+}
+
+/**
+ * Notch AM/FM filter checkbox changed.
+ * @param checked True if notch AM/FM filter is enabled, false otherwise
+ */
+void DockInputCtl::on_notchAMFMButton_toggled(bool checked)
+{
+    emit notchAMFMFilterChanged(checked);
+}
+
 /** Remove all widgets from the lists. */
 void DockInputCtl::clearWidgets()
 {
@@ -585,4 +603,28 @@ void DockInputCtl::getGains(QMap<QString, QVariant> *gains)
         gains->insert(gain_sliders.at(idx)->property("name").toString(),
                       QVariant(gain_sliders.at(idx)->value()));
     }
+}
+
+/** Enasble/disable BIAS-T. */
+void DockInputCtl::setBiasT(bool enable)
+{
+    ui->biastEnableButton->setChecked(enable);
+}
+
+/** Get current Bias-T status. */
+bool DockInputCtl::biasT(void)
+{
+    return ui->biastEnableButton->isChecked();
+}
+
+/** Enasble/disable Notch filter. */
+void DockInputCtl::setNotchAMFMFilter(bool enable)
+{
+    ui->notchAMFMButton->setChecked(enable);
+}
+
+/** Get current notch filter status. */
+bool DockInputCtl::notchAMFMFilter(void)
+{
+    return ui->notchAMFMButton->isChecked();
 }

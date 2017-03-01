@@ -140,6 +140,12 @@ public:
     void        set_iq_balance(bool enable);
     bool        get_iq_balance(void) const;
 
+    void        set_biast(bool enable);
+    bool        get_biast(void) const;
+
+    void        set_notch_AMFM_filter(bool enable);
+    bool        get_notch_AMFM_filter(void) const;
+
     status      set_rf_freq(double freq_hz);
     double      get_rf_freq(void);
     status      get_rf_range(double *start, double *stop, double *step);
@@ -237,6 +243,8 @@ private:
     bool        d_iq_rev;           /*!< Whether I/Q is reversed or not. */
     bool        d_dc_cancel;        /*!< Enable automatic DC removal. */
     bool        d_iq_balance;       /*!< Enable automatic IQ balance. */
+    bool        d_biast;            /*!< Enable BIAS-T power. */
+    bool        d_notch_AMFM_filter;/*!< Enable Notch AM/FM filter. */
 
     std::string input_devstr;  /*!< Current input device string. */
     std::string output_devstr; /*!< Current output device string. */

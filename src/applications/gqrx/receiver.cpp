@@ -27,7 +27,7 @@
 #endif
 
 #include <iostream>
-
+#include <qdebug.h>
 #include <gnuradio/blocks/multiply_const_ff.h>
 #include <gnuradio/prefs.h>
 #include <gnuradio/top_block.h>
@@ -511,6 +511,53 @@ void receiver::set_iq_balance(bool enable)
 bool receiver::get_iq_balance(void) const
 {
     return d_iq_balance;
+}
+
+/**
+ * @brief Enable/disable BIAS-T power.
+ * @param enable Whether BIAS-T should be enabled.
+ */
+void receiver::set_biast(bool enable)
+{
+    if (enable == d_biast)
+        return;
+
+    d_biast = enable;
+    src->set_biast(enable, 0);
+}
+
+/**
+ * @brief Get auto BIAS-T power status.
+ * @retval true  BIAS-T power is enabled.
+ * @retval false BIAS-T power is disabled.
+ */
+bool receiver::get_biast(void) const
+{
+    return d_biast;
+}
+
+/**
+ * @brief Enable/disable Notch AM/FM filter.
+ * @param enable Whether Notch AM/FM filter should be enabled.
+ */
+void receiver::set_notch_AMFM_filter(bool enable)
+{
+    if (enable == d_notch_AMFM_filter)
+        return;
+
+    d_notch_AMFM_filter = enable;
+
+    src->set_notch_AMFM_filter(enable, 0);
+}
+
+/**
+ * @brief Get Notch AM/FM filter status.
+ * @retval true  Notch AM/FM filter is enabled.
+ * @retval false Notch AM/FM filter is disabled.
+ */
+bool receiver::get_notch_AMFM_filter(void) const
+{
+    return d_notch_AMFM_filter;
 }
 
 /**

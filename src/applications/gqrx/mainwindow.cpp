@@ -190,6 +190,8 @@ MainWindow::MainWindow(const QString cfgfile, bool edit_conf, QWidget *parent) :
     connect(uiDockInputCtl, SIGNAL(iqSwapChanged(bool)), this, SLOT(setIqSwap(bool)));
     connect(uiDockInputCtl, SIGNAL(dcCancelChanged(bool)), this, SLOT(setDcCancel(bool)));
     connect(uiDockInputCtl, SIGNAL(iqBalanceChanged(bool)), this, SLOT(setIqBalance(bool)));
+    connect(uiDockInputCtl, SIGNAL(biastChanged(bool)), this, SLOT(setBiasT(bool)));
+    connect(uiDockInputCtl, SIGNAL(notchAMFMFilterChanged(bool)), this, SLOT(setNotchAMFMFilter(bool)));
     connect(uiDockInputCtl, SIGNAL(ignoreLimitsChanged(bool)), this, SLOT(setIgnoreLimits(bool)));
     connect(uiDockInputCtl, SIGNAL(antennaSelected(QString)), this, SLOT(setAntenna(QString)));
     connect(uiDockInputCtl, SIGNAL(freqCtrlResetChanged(bool)), this, SLOT(setFreqCtrlReset(bool)));
@@ -904,6 +906,18 @@ void MainWindow::setDcCancel(bool enabled)
 void MainWindow::setIqBalance(bool enabled)
 {
     rx->set_iq_balance(enabled);
+}
+
+/** Enable/disable BIAS-T power. */
+void MainWindow::setBiasT(bool enabled)
+{
+    rx->set_biast(enabled);
+}
+
+/** Enable/disable Notch Filter AM/FM. */
+void MainWindow::setNotchAMFMFilter(bool enabled)
+{
+    rx->set_notch_AMFM_filter(enabled);
 }
 
 /**
