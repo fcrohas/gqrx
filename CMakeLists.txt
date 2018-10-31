@@ -1,11 +1,11 @@
-cmake_minimum_required(VERSION 2.8.0)
+cmake_minimum_required(VERSION 2.8.11)
 
 # Project name
 project(gqrx)
 set(${PROJECT_NAME}_MAJOR "2")
-set(${PROJECT_NAME}_MINOR "6")
-set(${PROJECT_NAME}_PATCH "0")
-##set(VERSION "${${PROJECT_NAME}_MAJOR}.${${PROJECT_NAME}_MINOR}.${${PROJECT_NAME}_PATCH}")
+set(${PROJECT_NAME}_MINOR "11")
+set(${PROJECT_NAME}_PATCH "5")
+set(VERSION "${${PROJECT_NAME}_MAJOR}.${${PROJECT_NAME}_MINOR}.${${PROJECT_NAME}_PATCH}")
 ##set(VERSION "${${PROJECT_NAME}_MAJOR}.${${PROJECT_NAME}_MINOR}")
 ##add_definitions(-DVERSION="${VERSION}")
 
@@ -96,21 +96,28 @@ function(add_source_files list)
     set_property(GLOBAL APPEND PROPERTY ${list} "${SRCS}")
 endfunction(add_source_files)
 
+if(APPLE AND EXISTS /usr/local/opt/qt5)
+    # Homebrew installs Qt5 (up to at least 5.9.1) in
+    # /usr/local/qt5, ensure it can be found by CMake since
+    # it is not in the default /usr/local prefix.
+    list(APPEND CMAKE_PREFIX_PATH "/usr/local/opt/qt5")
+endif()
 
 # 3rd Party Dependency Stuff
-find_package(Qt5 COMPONENTS Core Network Widgets REQUIRED)
+find_package(Qt5 COMPONENTS Core Network Widgets Svg REQUIRED)
 find_package(Boost COMPONENTS system program_options REQUIRED)
 set(GR_REQUIRED_COMPONENTS RUNTIME ANALOG AUDIO BLOCKS DIGITAL FILTER FFT PMT)
 find_package(Gnuradio REQUIRED)
 find_package(Gnuradio-osmosdr REQUIRED)
 
+
 if(NOT GNURADIO_RUNTIME_FOUND)
-    message(FATAL_ERROR "GnuRadio Runtime required to compile gr-air-modes")
+    message(FATAL_ERROR "GnuRadio Runtime required to compile gqrx")
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     if(NOT LINUX_AUDIO_BACKEND)
-        set(LINUX_AUDIO_BACKEND Pulseaudio CACHE STRING "Choose the audio backend, options are: Pulseaudio, Gr-audio" FORCE)
+        set(LINUX_AUDIO_BACKEND Pulseaudio CACHE STRING "Choose the audio backend, options are: Pulseaudio, Portaudio, Gr-audio" FORCE)
     endif()
 
     if(${LINUX_AUDIO_BACKEND} MATCHES "Pulseaudio")
@@ -145,9 +152,39 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     endif()
 endif()
 
+if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    if(NOT OSX_AUDIO_BACKEND)
+        set(OSX_AUDIO_BACKEND Portaudio CACHE STRING "Choose the audio backend, options are: Portaudio and Gr-audio" FORCE)
+    endif()
+
+    if(${OSX_AUDIO_BACKEND} MATCHES "Portaudio")
+        find_package(Portaudio REQUIRED)
+        add_definitions(-DWITH_PORTAUDIO)
+        unset(PULSEAUDIO_FOUND CACHE)
+        unset(PULSEAUDIO_INCLUDE_DIR CACHE)
+        unset(PULSEAUDIO_LIBRARY CACHE)
+        unset(PulseAudio_DIR CACHE)
+        unset(PULSE-SIMPLE CACHE)
+        unset(PULSEAUDIO_INCLUDE_DIR CACHE)
+        unset(PULSEAUDIO_MAINLOOP_LIBRARY CACHE)
+    elseif(${OSX_AUDIO_BACKEND} MATCHES "Gr-audio")
+        unset(PULSEAUDIO_FOUND CACHE)
+        unset(PULSEAUDIO_INCLUDE_DIR CACHE)
+        unset(PULSEAUDIO_LIBRARY CACHE)
+        unset(PulseAudio_DIR CACHE)
+        unset(PULSE-SIMPLE CACHE)
+        unset(PULSEAUDIO_INCLUDE_DIR CACHE)
+        unset(PULSEAUDIO_MAINLOOP_LIBRARY CACHE)
+        unset(PORTAUDIO_INCLUDE_DIRS CACHE)
+        unset(PORTAUDIO_LIBRARIES CACHE)
+    else()
+        message(FATAL_ERROR "Invalid audio backend: should be either Portaudio or Gr-audio")
+    endif()
+endif()
+
 
 # Airspy optimizations that require modified gr-osmosdr
-option(CUSTOM_AIRSPY_KERNELS "Enable non-standard Airspy optimizations" OFF)
+option(CUSTOM_AIRSPY_KERNELS "Enable non-standard Airspy optimizations" ON)
 if(CUSTOM_AIRSPY_KERNELS)
     add_definitions(-DCUSTOM_AIRSPY_KERNELS)
 endif(CUSTOM_AIRSPY_KERNELS)
@@ -163,6 +200,7 @@ include_directories(
     ${CMAKE_SOURCE_DIR}/include
     ${Boost_INCLUDE_DIRS}
     ${GNURADIO_RUNTIME_INCLUDE_DIRS}
+    ${GNURADIO_OSMOSDR_INCLUDE_DIRS}
 )
 
 link_directories(

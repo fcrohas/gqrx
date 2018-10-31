@@ -70,7 +70,6 @@ public:
     void    readSettings(QSettings * settings);
     void    saveSettings(QSettings * settings);
 
-    void    setLnbLo(double freq_mhz);
     double  lnbLo();
     void    readLnbLoFromSettings(QSettings * settings);
 
@@ -99,7 +98,7 @@ public:
     void    setAntenna(const QString &antenna);
 
     void    setGainStages(gain_list_t &gain_list);
-    void    restoreManualGains(QSettings *settings);
+    void    restoreManualGains(void);
 
     void    setFreqCtrlReset(bool enabled);
 
@@ -122,6 +121,9 @@ signals:
     void freqCtrlResetChanged(bool enabled);
     void biastChanged(bool enabled);
     void notchAMFMFilterChanged(bool enabled);
+
+public slots:
+    void setLnbLo(double freq_mhz);
 
 private slots:
     void on_lnbSpinBox_valueChanged(double value);

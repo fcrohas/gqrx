@@ -25,6 +25,7 @@
 #include <iostream>
 #include <QString>
 #include <QStringList>
+#include <QtGlobal>
 #include "remote_control.h"
 
 #define DEFAULT_RC_PORT            7356
@@ -37,7 +38,10 @@ RemoteControl::RemoteControl(QObject *parent) :
     rc_freq = 0;
     rc_filter_offset = 0;
     bw_half = 740e3;
+    rc_lnb_lo_mhz = 0.0;
     rc_mode = 0;
+    rc_passband_lo = 0;
+    rc_passband_hi = 0;
     signal_level = -200.0;
     squelch_level = -150.0;
     audio_recorder_status = false;
@@ -48,6 +52,13 @@ RemoteControl::RemoteControl(QObject *parent) :
     rc_allowed_hosts.append(DEFAULT_RC_ALLOWED_HOSTS);
 
     rc_socket = 0;
+
+#if QT_VERSION < 0x050900
+    // Disable proxy setting detected by Qt
+    // Workaround for https://bugreports.qt.io/browse/QTBUG-58374
+    // Fix: https://codereview.qt-project.org/#/c/186124/
+    rc_server.setProxy(QNetworkProxy::NoProxy);
+#endif
 
     connect(&rc_server, SIGNAL(newConnection()), this, SLOT(acceptConnection()));
 
@@ -68,8 +79,11 @@ void RemoteControl::start_server()
 /*! \brief Stop the server. */
 void RemoteControl::stop_server()
 {
-    if (rc_socket != 0)
+    if (rc_socket != 0) {
         rc_socket->close();
+        rc_socket->deleteLater();
+        rc_socket = 0;
+    }
 
     if (rc_server.isListening())
         rc_server.close();
@@ -112,7 +126,7 @@ void RemoteControl::saveSettings(QSettings *settings) const
     else
         settings->remove("port");
 
-    if ((rc_allowed_hosts.count() != 1) || (rc_allowed_hosts.at(0) != DEFAULT_RC_ALLOWED_HOSTS))
+    if (rc_allowed_hosts.count() > 0)
         settings->setValue("allowed_hosts", rc_allowed_hosts);
     else
         settings->remove("allowed_hosts");
@@ -151,6 +165,11 @@ void RemoteControl::setHosts(QStringList hosts)
  */
 void RemoteControl::acceptConnection()
 {
+    if (rc_socket)
+    {
+        rc_socket->close();
+        rc_socket->deleteLater();
+    }
     rc_socket = rc_server.nextPendingConnection();
 
     // check if host is allowed
@@ -160,6 +179,8 @@ void RemoteControl::acceptConnection()
         std::cout << "*** Remote connection attempt from " << address.toStdString()
                   << " (not in allowed list)" << std::endl;
         rc_socket->close();
+        rc_socket->deleteLater();
+        rc_socket = 0;
     }
     else
     {
@@ -218,12 +239,16 @@ void RemoteControl::startRead()
         answer = cmd_AOS();
     else if (cmd == "LOS")
         answer = cmd_LOS();
+    else if (cmd == "LNB_LO")
+        answer = cmd_lnb_lo(cmdlist);
     else if (cmd == "\\dump_state")
         answer = cmd_dump_state();
     else if (cmd == "q" || cmd == "Q")
     {
         // FIXME: for now we assume 'close' command
         rc_socket->close();
+        rc_socket->deleteLater();
+        rc_socket = 0;
         return;
     }
     else
@@ -253,10 +278,18 @@ void RemoteControl::setFilterOffset(qint64 freq)
     rc_filter_offset = freq;
 }
 
+/*! \brief Slot called when the LNB LO frequency has changed
+ *  \param freq_mhz new LNB LO frequency in MHz
+ */
+void RemoteControl::setLnbLo(double freq_mhz)
+{
+    rc_lnb_lo_mhz = freq_mhz;
+}
+
 void RemoteControl::setBandwidth(qint64 bw)
 {
     // we want to leave some margin
-    bw_half = 0.9 * (bw / 2);
+    bw_half = (qint64)(0.9f * (bw / 2.f));
 }
 
 /*! \brief Set signal level in dBFS. */
@@ -285,23 +318,23 @@ void RemoteControl::setPassband(int passband_lo, int passband_hi)
 void RemoteControl::setNewRemoteFreq(qint64 freq)
 {
     qint64 delta = freq - rc_freq;
+    qint64 bwh_eff = 0.8f * (float)bw_half;
 
     rc_filter_offset += delta;
-    if (((rc_filter_offset > 0) && ((rc_filter_offset + rc_passband_hi) < bw_half))
-        || ((rc_filter_offset < 0) && ((rc_filter_offset + rc_passband_lo) > -bw_half)))
+    if ((rc_filter_offset > 0 && rc_filter_offset + rc_passband_hi < bwh_eff) ||
+        (rc_filter_offset < 0 && rc_filter_offset + rc_passband_lo > -bwh_eff))
     {
         // move filter offset
         emit newFilterOffset(rc_filter_offset);
     }
     else
     {
-        // move rx freqeucy and let MainWindow deal with it
-        // (will usually change hardware PLL)
-        // reset the filter_offset, otherwise the MainWindow will preserve it
+        // moving filter offset would push it too close to or beyond the edge
+        // move it close to the center and adjust hardware freq
         if (rc_filter_offset < 0)
-            rc_filter_offset = bw_half - rc_passband_hi;
+            rc_filter_offset = -0.2f * bwh_eff;
         else
-            rc_filter_offset = -bw_half - rc_passband_lo;
+            rc_filter_offset = 0.2f * bwh_eff;
         emit newFilterOffset(rc_filter_offset);
         emit newFrequency(freq);
     }
@@ -689,6 +722,29 @@ QString RemoteControl::cmd_LOS()
     emit stopAudioRecorderEvent();
     audio_recorder_status = false;
     return QString("RPRT 0\n");
+}
+
+/* Set the LNB LO value */
+QString RemoteControl::cmd_lnb_lo(QStringList cmdlist)
+{
+    if(cmdlist.size() == 2)
+    {
+        bool ok;
+        qint64 freq = cmdlist[1].toLongLong(&ok);
+
+        if (ok)
+        {
+            rc_lnb_lo_mhz = freq / 1e6;
+            emit newLnbLo(rc_lnb_lo_mhz);
+            return QString("RPRT 0\n");
+        }
+
+        return QString("RPRT 1\n");
+    }
+    else
+    {
+        return QString("%1\n").arg((qint64)(rc_lnb_lo_mhz * 1e6));
+    }
 }
 
 /*

@@ -31,6 +31,7 @@
 #include <QTimer>
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QSvgWidget>
 
 #include "qtgui/dockrxopt.h"
 #include "qtgui/dockaudio.h"
@@ -86,7 +87,6 @@ private:
     float          *d_realFftData;
     float          *d_iirFftData;
     float          *d_pwrFftData;
-    //double *d_audioFttData;
     float           d_fftAvg;      /*!< FFT averaging parameter set by user (not the true gain). */
 
     bool d_have_audio;  /*!< Whether we have audio (i.e. not with demod_off. */
@@ -117,6 +117,9 @@ private:
     RemoteControl *remote;
 
     std::map<QString, QVariant> devList;
+
+    // dummy widget to enforce linking to QtSvg
+    QSvgWidget      *qsvg_dummy;
 
 private:
     void updateHWFrequencyRange(bool ignore_limits);
@@ -179,6 +182,7 @@ private slots:
     /* FFT settings */
     void setIqFftSize(int size);
     void setIqFftRate(int fps);
+    void setIqFftWindow(int type);
     void setIqFftSplit(int pct_wf);
     void setIqFftAvg(float avg);
     void setAudioFftRate(int fps);

@@ -31,6 +31,7 @@
 #define DEFAULT_FFT_MIN_DB     -135
 #define DEFAULT_FFT_RATE        25
 #define DEFAULT_FFT_SIZE        8192
+#define DEFAULT_FFT_WINDOW      1       // Hann
 #define DEFAULT_FFT_SPLIT       35
 #define DEFAULT_FFT_AVG         75
 
@@ -200,6 +201,12 @@ void DockFft::saveSettings(QSettings *settings)
     else
         settings->remove("fft_rate");
 
+    intval = ui->fftWinComboBox->currentIndex();
+    if (intval != DEFAULT_FFT_WINDOW)
+        settings->setValue("fft_window", intval);
+    else
+        settings->remove("fft_window");
+
     if (ui->fftAvgSlider->value() != DEFAULT_FFT_AVG)
         settings->setValue("averaging", ui->fftAvgSlider->value());
     else
@@ -276,6 +283,10 @@ void DockFft::readSettings(QSettings *settings)
     intval = settings->value("fft_size", DEFAULT_FFT_SIZE).toInt(&conv_ok);
     if (conv_ok)
         setFftSize(intval);
+
+    intval = settings->value("fft_window", DEFAULT_FFT_WINDOW).toInt(&conv_ok);
+    if (conv_ok)
+        ui->fftWinComboBox->setCurrentIndex(intval);
 
     intval = settings->value("averaging", DEFAULT_FFT_AVG).toInt(&conv_ok);
     if (conv_ok)
@@ -360,10 +371,16 @@ void DockFft::on_fftRateComboBox_currentIndexChanged(const QString & text)
     updateInfoLabels();
 }
 
+void DockFft::on_fftWinComboBox_currentIndexChanged(int index)
+{
+    emit fftWindowChanged(index);
+}
 
 static const quint64 wf_span_table[] =
 {
     0,              // Auto
+    1*60*1000,      // 1 minute
+    2*60*1000,      // 2 minutes
     5*60*1000,      // 5 minutes
     10*60*1000,     // 10 minutes
     15*60*1000,     // 15 minutes
@@ -381,7 +398,7 @@ static const quint64 wf_span_table[] =
 /** Waterfall time span changed. */
 void DockFft::on_wfSpanComboBox_currentIndexChanged(int index)
 {
-    if (index < 0 || index > 12)
+    if (index < 0 || index > 14)
         return;
 
     emit wfSpanChanged(wf_span_table[index]);

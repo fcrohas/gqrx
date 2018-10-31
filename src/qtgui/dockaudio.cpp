@@ -93,9 +93,9 @@ void DockAudio::setFftRange(quint64 minf, quint64 maxf)
     }
 }
 
-void DockAudio::setNewFttData(float *fftData, int size)
+void DockAudio::setNewFftData(float *fftData, int size)
 {
-    ui->audioSpectrum->setNewFttData(fftData, size);
+    ui->audioSpectrum->setNewFftData(fftData, size);
 }
 
 /*! \brief Set new audio gain.
@@ -221,12 +221,20 @@ void DockAudio::on_audioRecButton_clicked(bool checked)
 void DockAudio::on_audioPlayButton_clicked(bool checked)
 {
     if (checked) {
-        // emit signal and start timer
-        emit audioPlayStarted(last_audio);
+        QFileInfo info(last_audio);
 
-        ui->audioRecLabel->setText(QFileInfo(last_audio).fileName());
-        ui->audioPlayButton->setToolTip(tr("Stop audio playback"));
-        ui->audioRecButton->setEnabled(false); // prevent recording while we play
+        if(info.exists()) {
+            // emit signal and start timer
+            emit audioPlayStarted(last_audio);
+
+            ui->audioRecLabel->setText(info.fileName());
+            ui->audioPlayButton->setToolTip(tr("Stop audio playback"));
+            ui->audioRecButton->setEnabled(false); // prevent recording while we play
+        }
+        else {
+            ui->audioPlayButton->setChecked(false);
+            ui->audioPlayButton->setEnabled(false);
+        }
     }
     else {
         ui->audioRecLabel->setText("<i>DSP</i>");
@@ -319,10 +327,10 @@ void DockAudio::saveSettings(QSettings *settings)
     else
         settings->remove("rec_dir");
 
-    if ((udp_host != "localhost") && (udp_host != "127.0.0.1"))
-        settings->setValue("udp_host", udp_host);
-    else
+    if (udp_host.isEmpty())
         settings->remove("udp_host");
+    else
+        settings->setValue("udp_host", udp_host);
 
     if (udp_port != 7355)
         settings->setValue("udp_port", udp_port);

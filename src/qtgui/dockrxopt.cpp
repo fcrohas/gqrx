@@ -37,8 +37,8 @@ static const int filter_preset_table[DockRxOpt::MODE_LAST][3][2] =
     {{ -10000,  10000}, { -5000,  5000}, { -2500,  2500}},  // MODE_NFM
     {{-100000, 100000}, {-80000, 80000}, {-60000, 60000}},  // MODE_WFM_MONO
     {{-100000, 100000}, {-80000, 80000}, {-60000, 60000}},  // MODE_WFM_STEREO
-    {{  -4000,   -100}, { -2800,  -100}, { -1600,  -200}},  // MODE_LSB
-    {{    100,   4000}, {   100,  2800}, {   200,  1600}},  // MODE_USB
+    {{  -4000,   -100}, { -2800,  -100}, { -2400,  -300}},  // MODE_LSB
+    {{    100,   4000}, {   100,  2800}, {   300,  2400}},  // MODE_USB
     {{  -1000,   1000}, {  -250,   250}, {  -100,   100}},  // MODE_CWL
     {{  -1000,   1000}, {  -250,   250}, {  -100,   100}},  // MODE_CWU
     {{-100000, 100000}, {-80000, 80000}, {-60000, 60000}}   // MODE_WFM_STEREO_OIRT
@@ -75,18 +75,21 @@ DockRxOpt::DockRxOpt(qint64 filterOffsetRange, QWidget *parent) :
     ui->modeButton->setAttribute(Qt::WA_LayoutUsesWidgetRect);
     ui->agcButton->setAttribute(Qt::WA_LayoutUsesWidgetRect);
     ui->autoSquelchButton->setAttribute(Qt::WA_LayoutUsesWidgetRect);
+    ui->resetSquelchButton->setAttribute(Qt::WA_LayoutUsesWidgetRect);
 #endif
 
 #ifdef Q_OS_LINUX
     ui->modeButton->setMinimumSize(32, 24);
     ui->agcButton->setMinimumSize(32, 24);
     ui->autoSquelchButton->setMinimumSize(32, 24);
+    ui->resetSquelchButton->setMinimumSize(32, 24);
     ui->nbOptButton->setMinimumSize(32, 24);
     ui->nb2Button->setMinimumSize(32, 24);
     ui->nb1Button->setMinimumSize(32, 24);
 #endif
 
-    ui->filterFreq->setup(7, -filterOffsetRange/2, filterOffsetRange/2, 1, UNITS_KHZ);
+    ui->filterFreq->setup(7, -filterOffsetRange/2, filterOffsetRange/2, 1,
+                          FCTL_UNIT_KHZ);
     ui->filterFreq->setFrequency(0);
 
     // use same slot for filteCombo and filterShapeCombo
@@ -136,8 +139,24 @@ void DockRxOpt::setFilterOffset(qint64 freq_hz)
  */
 void DockRxOpt::setFilterOffsetRange(qint64 range_hz)
 {
-    if (range_hz > 0)
-        ui->filterFreq->setup(7, -range_hz/2, range_hz/2, 1, UNITS_KHZ);
+    int num_digits;
+
+    if (range_hz <= 0)
+        return;
+
+    range_hz /= 2;
+    if (range_hz < 100e3)
+        num_digits = 5;
+    else if (range_hz < 1e6)
+        num_digits = 6;
+    else if (range_hz < 1e7)
+        num_digits = 7;
+    else if (range_hz < 1e8)
+        num_digits = 8;
+    else
+        num_digits = 9;
+
+    ui->filterFreq->setup(num_digits, -range_hz, range_hz, 1, FCTL_UNIT_KHZ);
 }
 
 /**
@@ -284,6 +303,11 @@ void DockRxOpt::setSquelchLevel(double level)
     ui->sqlSpinBox->setValue(level);
 }
 
+double DockRxOpt::getSqlLevel(void) const
+{
+    return ui->sqlSpinBox->value();
+}
+
 /**
  * @brief Get the current squelch level
  * @returns The current squelch setting in dBFS
@@ -381,12 +405,13 @@ void DockRxOpt::readSettings(QSettings *settings)
     if (settings->value("receiver/agc_off", false).toBool())
         ui->agcPresetCombo->setCurrentIndex(4);
 
-    int_val = settings->value("receiver/demod", 0).toInt(&conv_ok);
-    if (int_val >= 0)
-    {
-        setCurrentDemod(int_val);
-        emit demodSelected(int_val);
-    }
+    int_val = MODE_AM;
+    if (settings->contains("receiver/demod"))
+        int_val = settings->value("receiver/demod").toInt(&conv_ok);
+
+    setCurrentDemod(int_val);
+    emit demodSelected(int_val);
+
 }
 
 /** Save receiver configuration to settings. */
@@ -465,6 +490,26 @@ void DockRxOpt::saveSettings(QSettings *settings)
         settings->setValue("receiver/agc_off", true);
     else
         settings->remove("receiver/agc_off");
+}
+
+/** RX frequency changed through spin box */
+void DockRxOpt::on_freqSpinBox_valueChanged(double freq)
+{
+    emit rxFreqChanged(1.e3 * freq);
+}
+
+void DockRxOpt::setRxFreq(qint64 freq_hz)
+{
+    ui->freqSpinBox->blockSignals(true);
+    ui->freqSpinBox->setValue(1.e-3 * (double)freq_hz);
+    ui->freqSpinBox->blockSignals(false);
+}
+
+void DockRxOpt::setRxFreqRange(qint64 min_hz, qint64 max_hz)
+{
+    ui->freqSpinBox->blockSignals(true);
+    ui->freqSpinBox->setRange(1.e-3 * (double)min_hz, 1.e-3 * (double)max_hz);
+    ui->freqSpinBox->blockSignals(false);
 }
 
 /**
@@ -547,6 +592,11 @@ void DockRxOpt::on_autoSquelchButton_clicked()
 {
     double newval = sqlAutoClicked(); // FIXME: We rely on signal only being connected to one slot
     ui->sqlSpinBox->setValue(newval);
+}
+
+void DockRxOpt::on_resetSquelchButton_clicked()
+{
+    ui->sqlSpinBox->setValue(-150.0);
 }
 
 /** AGC preset has changed. */

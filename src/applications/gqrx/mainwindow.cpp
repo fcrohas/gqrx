@@ -44,6 +44,7 @@
 #include <QtGlobal>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QSvgWidget>
 #include "qtgui/ioconfig.h"
 #include "mainwindow.h"
 
@@ -83,7 +84,7 @@ MainWindow::MainWindow(const QString cfgfile, bool edit_conf, QWidget *parent) :
     setWindowTitle(QString("Gqrx %1").arg(VERSION));
 
     /* frequency control widget */
-    ui->freqCtrl->setup(10, (quint64) 0, (quint64) 9999e6, 1, UNITS_MHZ);
+    ui->freqCtrl->setup(0, 0, 9999e6, 1, FCTL_UNIT_NONE);
     ui->freqCtrl->setFrequency(144500000);
 
     d_filter_shape = receiver::FILTER_SHAPE_NORMAL;
@@ -183,7 +184,9 @@ MainWindow::MainWindow(const QString cfgfile, bool edit_conf, QWidget *parent) :
     connect(ui->freqCtrl, SIGNAL(newFrequency(qint64)), this, SLOT(setNewFrequency(qint64)));
     connect(ui->freqCtrl, SIGNAL(newFrequency(qint64)), remote, SLOT(setNewFrequency(qint64)));
     connect(ui->freqCtrl, SIGNAL(newFrequency(qint64)), uiDockAudio, SLOT(setRxFrequency(qint64)));
+    connect(ui->freqCtrl, SIGNAL(newFrequency(qint64)), uiDockRxOpt, SLOT(setRxFreq(qint64)));
     connect(uiDockInputCtl, SIGNAL(lnbLoChanged(double)), this, SLOT(setLnbLo(double)));
+    connect(uiDockInputCtl, SIGNAL(lnbLoChanged(double)), remote, SLOT(setLnbLo(double)));
     connect(uiDockInputCtl, SIGNAL(gainChanged(QString, double)), this, SLOT(setGain(QString,double)));
     connect(uiDockInputCtl, SIGNAL(autoGainChanged(bool)), this, SLOT(setAutoGain(bool)));
     connect(uiDockInputCtl, SIGNAL(freqCorrChanged(double)), this, SLOT(setFreqCorr(double)));
@@ -195,6 +198,7 @@ MainWindow::MainWindow(const QString cfgfile, bool edit_conf, QWidget *parent) :
     connect(uiDockInputCtl, SIGNAL(ignoreLimitsChanged(bool)), this, SLOT(setIgnoreLimits(bool)));
     connect(uiDockInputCtl, SIGNAL(antennaSelected(QString)), this, SLOT(setAntenna(QString)));
     connect(uiDockInputCtl, SIGNAL(freqCtrlResetChanged(bool)), this, SLOT(setFreqCtrlReset(bool)));
+    connect(uiDockRxOpt, SIGNAL(rxFreqChanged(qint64)), ui->freqCtrl, SLOT(setFrequency(qint64)));
     connect(uiDockRxOpt, SIGNAL(filterOffsetChanged(qint64)), this, SLOT(setFilterOffset(qint64)));
     connect(uiDockRxOpt, SIGNAL(filterOffsetChanged(qint64)), remote, SLOT(setFilterOffset(qint64)));
     connect(uiDockRxOpt, SIGNAL(demodSelected(int)), this, SLOT(selectDemod(int)));
@@ -224,6 +228,7 @@ MainWindow::MainWindow(const QString cfgfile, bool edit_conf, QWidget *parent) :
     connect(uiDockAudio, SIGNAL(fftRateChanged(int)), this, SLOT(setAudioFftRate(int)));
     connect(uiDockFft, SIGNAL(fftSizeChanged(int)), this, SLOT(setIqFftSize(int)));
     connect(uiDockFft, SIGNAL(fftRateChanged(int)), this, SLOT(setIqFftRate(int)));
+    connect(uiDockFft, SIGNAL(fftWindowChanged(int)), this, SLOT(setIqFftWindow(int)));
     connect(uiDockFft, SIGNAL(wfSpanChanged(quint64)), this, SLOT(setWfTimeSpan(quint64)));
     connect(uiDockFft, SIGNAL(fftSplitChanged(int)), this, SLOT(setIqFftSplit(int)));
     connect(uiDockFft, SIGNAL(fftAvgChanged(float)), this, SLOT(setIqFftAvg(float)));
@@ -263,6 +268,8 @@ MainWindow::MainWindow(const QString cfgfile, bool edit_conf, QWidget *parent) :
     connect(remote, SIGNAL(newFilterOffset(qint64)), this, SLOT(setFilterOffset(qint64)));
     connect(remote, SIGNAL(newFilterOffset(qint64)), uiDockRxOpt, SLOT(setFilterOffset(qint64)));
     connect(remote, SIGNAL(newFrequency(qint64)), ui->freqCtrl, SLOT(setFrequency(qint64)));
+    connect(remote, SIGNAL(newLnbLo(double)), uiDockInputCtl, SLOT(setLnbLo(double)));
+    connect(remote, SIGNAL(newLnbLo(double)), this, SLOT(setLnbLo(double)));
     connect(remote, SIGNAL(newMode(int)), this, SLOT(selectDemod(int)));
     connect(remote, SIGNAL(newMode(int)), uiDockRxOpt, SLOT(setCurrentDemod(int)));
     connect(remote, SIGNAL(newSquelchLevel(double)), this, SLOT(setSqlLevel(double)));
@@ -315,7 +322,9 @@ MainWindow::MainWindow(const QString cfgfile, bool edit_conf, QWidget *parent) :
         {
             configOk = true;
         }
-   }
+    }
+
+    qsvg_dummy = new QSvgWidget();
 }
 
 MainWindow::~MainWindow()
@@ -370,6 +379,7 @@ MainWindow::~MainWindow()
     delete [] d_realFftData;
     delete [] d_iirFftData;
     delete [] d_pwrFftData;
+    delete qsvg_dummy;
 }
 
 /**
@@ -637,6 +647,11 @@ bool MainWindow::saveConfig(const QString cfgfile)
     else
         newfile = QString("%1/%2").arg(m_cfg_dir).arg(cfgfile);
 
+    if (newfile == oldfile) {
+        qDebug() << "New file is equal to old file => SYNCING...";
+        return true;
+    }
+
     if (QFile::exists(newfile))
     {
         qDebug() << "File" << newfile << "already exists => DELETING...";
@@ -740,7 +755,8 @@ void MainWindow::updateFrequencyRange()
     qint64 start = (qint64)(rx->get_filter_offset()) + d_hw_freq_start + d_lnb_lo;
     qint64 stop  = (qint64)(rx->get_filter_offset()) + d_hw_freq_stop  + d_lnb_lo;
 
-    ui->freqCtrl->setup(10, start, stop, 1, UNITS_MHZ);
+    ui->freqCtrl->setup(0, start, stop, 1, FCTL_UNIT_NONE);
+    uiDockRxOpt->setRxFreqRange(start, stop);
 }
 
 /**
@@ -865,11 +881,8 @@ void MainWindow::setGain(QString name, double gain)
 void MainWindow::setAutoGain(bool enabled)
 {
     rx->set_auto_gain(enabled);
-
     if (!enabled)
-    {
-        uiDockInputCtl->restoreManualGains(m_settings);
-    }
+        uiDockInputCtl->restoreManualGains();
 }
 
 /**
@@ -1217,6 +1230,7 @@ void MainWindow::setNoiseBlanker(int nbid, bool on, float threshold)
 void MainWindow::setSqlLevel(double level_db)
 {
     rx->set_sql_level(level_db);
+    ui->sMeter->setSqlLevel(level_db);
 }
 
 /**
@@ -1226,6 +1240,9 @@ void MainWindow::setSqlLevel(double level_db)
 double MainWindow::setSqlLevelAuto()
 {
     double level = rx->get_signal_pwr(true) + 1.0;
+    if (level > -10.0)  // avoid 0 dBFS
+        level = uiDockRxOpt->getSqlLevel();
+
     setSqlLevel(level);
     return level;
 }
@@ -1284,7 +1301,7 @@ void MainWindow::iqFftTimeout()
         d_iirFftData[i] += d_fftAvg * (d_realFftData[i] - d_iirFftData[i]);
     }
 
-    ui->plotter->setNewFttData(d_iirFftData, d_realFftData, fftsize);
+    ui->plotter->setNewFftData(d_iirFftData, d_realFftData, fftsize);
 }
 
 /** Audio FFT plot timeout. */
@@ -1329,7 +1346,7 @@ void MainWindow::audioFftTimeout()
         d_realFftData[i] = 10.0 * log10f(pwr + 1.0e-20);
     }
 
-    uiDockAudio->setNewFttData(d_realFftData, fftsize);
+    uiDockAudio->setNewFftData(d_realFftData, fftsize);
 }
 
 /** RDS message display timeout. */
@@ -1491,7 +1508,7 @@ void MainWindow::startIqPlayback(const QString filename, float samprate)
     storeSession();
 
     int sri = (int)samprate;
-    QString devstr = QString("file=%1,rate=%2,throttle=true,repeat=false")
+    QString devstr = QString("file='%1',rate=%2,throttle=true,repeat=false")
             .arg(filename).arg(sri);
 
     qDebug() << __func__ << ":" << devstr;
@@ -1600,6 +1617,11 @@ void MainWindow::setIqFftRate(int fps)
 
     if (interval > 9 && iq_fft_timer->isActive())
         iq_fft_timer->setInterval(interval);
+}
+
+void MainWindow::setIqFftWindow(int type)
+{
+    rx->set_iq_fft_window(type);
 }
 
 /** Waterfall time span has changed. */
@@ -2117,7 +2139,7 @@ void MainWindow::on_actionUserGroup_triggered()
 }
 
 /**
- * Show news.txt in a dialog window.
+ * Show ftxt in a dialog window.
  */
 void MainWindow::on_actionNews_triggered()
 {
@@ -2145,7 +2167,7 @@ void MainWindow::showSimpleTextFile(const QString &resource_path,
     if (!news.open(QIODevice::ReadOnly | QIODevice::Text))
     {
         qDebug() << "Unable to open file: " << news.fileName() <<
-                    " besause of error " << news.errorString();
+                    " because of error " << news.errorString();
 
         return;
     }
@@ -2189,12 +2211,12 @@ void MainWindow::on_actionAbout_triggered()
 {
     QMessageBox::about(this, tr("About Gqrx"),
         tr("<p>This is Gqrx %1</p>"
-           "<p>Copyright (C) 2011-2016 Alexandru Csete & contributors.</p>"
+           "<p>Copyright (C) 2011-2018 Alexandru Csete & contributors.</p>"
            "<p>Gqrx is a software defined radio (SDR) receiver powered by "
            "<a href='http://www.gnuradio.org/'>GNU Radio</a> and the Qt toolkit. "
-           "<p>Gqrx uses the <a href='http://sdr.osmocom.org/trac/wiki/GrOsmoSDR'>GrOsmoSDR</a> "
-           "input source block and and works with any input device supported by it, including "
-           "Funcube Dongles, RTL-SDR, Airspy, HackRF, RFSpace, BladeRF and USRP receivers."
+           "<p>Gqrx uses the <a href='https://osmocom.org/projects/sdr/wiki/GrOsmoSDR'>GrOsmoSDR</a> "
+           "input source block and works with any input device supported by it, including "
+           "Funcube Dongle, RTL-SDR, Airspy, HackRF, RFSpace, BladeRF and USRP receivers."
            "</p>"
            "<p>You can download the latest version from the "
            "<a href='http://gqrx.dk/'>Gqrx website</a>."
